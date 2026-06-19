@@ -1,0 +1,26 @@
+#!/bin/bash
+# Lanzador de la GUI Blocs -> footer.html.
+# El .app vive en la RAIZ del proyecto (junto a web/ y footer.html).
+# Ruta: <root>/Generar Footer.app/Contents/MacOS/launcher  -> root = 4x dirname.
+SELF="$0"
+ROOT="$(cd "$(dirname "$SELF")/../../.." && pwd)"
+GUI="$ROOT/tools/bloc2footer_gui.py"
+
+# Python con tkinter: primero el framework instalado, luego /usr/bin/python3.
+PY="/Library/Frameworks/Python.framework/Versions/3.13/bin/python3"
+[ -x "$PY" ] || PY="$(command -v python3)"
+[ -x "$PY" ] || PY="/usr/bin/python3"
+
+if [ "${BLOC_LAUNCH_DRYRUN:-0}" = "1" ]; then
+  echo "ROOT=$ROOT"; echo "GUI=$GUI"; echo "PY=$PY"
+  [ -f "$GUI" ] && echo "GUI existe: si" || echo "GUI existe: NO"
+  exit 0
+fi
+
+if [ ! -f "$GUI" ]; then
+  osascript -e "display alert \"Generar Footer\" message \"No encuentro tools/bloc2footer_gui.py junto al .app.\" as critical"
+  exit 1
+fi
+
+# Lanza la GUI; si truena, muestra el error en un dialogo.
+ERR="$("$PY" "$GUI" 2>&1)" || osascript -e "display alert \"Generar Footer\" message \"$ERR\" as critical"

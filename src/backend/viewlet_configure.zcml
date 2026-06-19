@@ -1,0 +1,14 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser">
+
+  <browser:viewlet
+      name="%%BACKEND_NAME%%.site_chrome_css"
+      for="*"
+      manager="plone.app.layout.viewlets.interfaces.IHtmlHead"
+      class=".site_chrome_viewlet.SiteChromeCSSViewlet"
+      permission="zope2.View"
+      layer="*"
+      />
+
+</configure>

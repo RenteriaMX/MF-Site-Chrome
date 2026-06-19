@@ -1,0 +1,57 @@
+/* Footer.css — solo estructura. Colores/tipografia vienen de base_css + css
+   guardados en Registry (editables sin rebuild). */
+
+.sc-footer {
+  width: 100%;
+}
+
+.sc-footer-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.sc-footer-col {
+  min-width: 160px;
+}
+
+.sc-footer-col-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.sc-footer-col-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sc-footer-col-links li {
+  margin: 0.25rem 0;
+}
+
+.sc-footer-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.sc-footer-legal {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .sc-footer-columns {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}

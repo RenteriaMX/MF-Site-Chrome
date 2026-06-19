@@ -1,0 +1,5 @@
+<tal:block condition="view/chrome_css">
+<style type="text/css"
+       tal:content="view/chrome_css">
+</style>
+</tal:block>

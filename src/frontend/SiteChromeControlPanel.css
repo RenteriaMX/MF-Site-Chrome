@@ -1,0 +1,141 @@
+.nm-controlpanel { max-width: 800px; padding: 2rem; }
+.nm-controlpanel h1 { margin-bottom: 0.5rem; }
+.nm-desc { color: #555; margin-bottom: 1.5rem; }
+.nm-list { margin: 1rem 0; }
+.nm-empty { color: #999; font-style: italic; padding: 1rem 0; }
+.nm-item {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.6rem 1rem; margin-bottom: 0.4rem;
+  background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;
+}
+.nm-handle { cursor: grab; font-size: 1.2rem; color: #aaa; user-select: none; }
+.nm-handle:active { cursor: grabbing; }
+.nm-label { font-weight: 600; min-width: 120px; }
+.nm-meta  { color: #666; font-size: 0.9rem; flex: 1; }
+.nm-actions { display: flex; gap: 0.3rem; margin-left: auto; }
+.nm-form-wrap {
+  margin: 1.5rem 0; padding: 1.5rem;
+  background: #f4f7fb; border-radius: 6px; border: 1px solid #c8d8ea;
+}
+.nm-form-wrap h3 { margin-bottom: 1rem; }
+.nm-add-btn { margin: 1rem 0 !important; }
+.nm-save-bar {
+  display: flex; align-items: center; gap: 1.5rem;
+  margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid #eee;
+}
+.nm-hint { color: #27ae60; font-size: 0.9rem; }
+.nm-loading { padding: 2rem; color: #666; }
+.nm-hint-field { color: #888; font-size: 0.82rem; display: block; margin-top: 0.3rem; }
+
+/* ── CSS por item ────────────────────────────────────────────────── */
+.nm-css-badge { font-size: 0.75rem; color: #2185d0; margin-left: 0.5rem; }
+.nm-css-panel {
+  margin: 0 0 0.4rem 2.5rem; padding: 1rem 1.2rem;
+  background: #f0f7ff; border: 1px dashed #a0c4f0; border-radius: 6px;
+}
+.nm-css-title { margin: 0 0 0.6rem; font-size: 0.9rem; }
+.nm-css-presets { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+.nm-css-label { font-size: 0.8rem; color: #666; margin-right: 0.3rem; }
+.nm-preset-btn {
+  padding: 0.25rem 0.6rem; border: 1px solid #c0d8f0; border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 0.8rem; color: #2185d0; transition: all 0.1s;
+}
+.nm-preset-btn:hover,
+.nm-preset-btn.active { background: #2185d0; color: #fff; border-color: #2185d0; }
+.nm-preset-btn.nm-preset-clear { color: #999; border-color: #ddd; }
+.nm-preset-btn.nm-preset-clear:hover { background: #e00; color: #fff; border-color: #e00; }
+.nm-css-hint { margin-top: 0.5rem; font-size: 0.78rem; color: #888; }
+.nm-css-hint code { background: #e8f0fe; padding: 0.1rem 0.3rem; border-radius: 3px; }
+
+/* ── Editor CSS global ───────────────────────────────────────────── */
+.nm-css-editor-wrap {
+  border: 1px solid #c8d8ea; border-radius: 6px; overflow: hidden; margin-bottom: 1rem;
+}
+.nm-css-editor-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 0.75rem;
+  background: #eef3fa; border-bottom: 1px solid #c8d8ea; font-size: 0.85rem; color: #555;
+}
+.nm-css-snippets { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem; font-size: 0.8rem; color: #666; }
+.nm-snippet-btn {
+  padding: 0.2rem 0.5rem; border: 1px solid #c0d8f0; border-radius: 3px;
+  background: #fff; cursor: pointer; font-size: 0.78rem; color: #2185d0; transition: all 0.1s;
+}
+.nm-snippet-btn:hover { background: #2185d0; color: #fff; border-color: #2185d0; }
+.nm-snippet-btn-warn { color: #e67e22; border-color: #e67e22; }
+.nm-snippet-btn-warn:hover { background: #e67e22; color: #fff; border-color: #e67e22; }
+.nm-css-editor {
+  display: block; width: 100%; min-height: 300px; padding: 1rem;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85rem; line-height: 1.5; color: #1d1d1f; background: #fafcff;
+  border: none; resize: vertical; outline: none; box-sizing: border-box;
+}
+
+/* ── Editor de footer (columnas) ─────────────────────────────────── */
+.sc-cp-disabled { opacity: 0.4; pointer-events: none; }
+.sc-cp-col {
+  margin: 1rem 0; padding: 1rem 1.2rem;
+  background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px;
+}
+.sc-cp-col-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.sc-cp-col-head .ui.input { flex: 1; }
+.sc-cp-link { display: flex; align-items: center; gap: 0.5rem; margin: 0.4rem 0; }
+.sc-cp-link .ui.input:first-child { flex: 0 0 35%; }
+.sc-cp-link .ui.input:nth-child(2) { flex: 1; }
+.sc-cp-copyright {
+  display: block; width: 100%; min-height: 60px; padding: 0.6rem;
+  font-family: inherit; font-size: 0.9rem; border: 1px solid #c8d8ea;
+  border-radius: 4px; resize: vertical; box-sizing: border-box;
+}
+.sc-cp-legal { margin-top: 1.5rem; }
+.sc-cp-legal > label { font-weight: 600; display: block; margin-bottom: 0.5rem; }
+
+/* ── Selector de modo del footer ─────────────────────────────────── */
+.sc-cp-modebar {
+  display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: stretch;
+  margin: 0 0 1rem; padding: 0.75rem; background: #f4f7fb;
+  border: 1px solid #dde6f0; border-radius: 6px;
+}
+.sc-cp-modebar-label { align-self: center; font-weight: 600; color: #333; margin-right: 0.25rem; }
+.sc-cp-mode {
+  display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 160px;
+  padding: 0.6rem 0.8rem; background: #fff; border: 1px solid #d3dce6;
+  border-radius: 5px; cursor: pointer; transition: all 0.12s;
+}
+.sc-cp-mode:hover { border-color: #2185d0; }
+.sc-cp-mode.active { border-color: #2185d0; box-shadow: 0 0 0 1px #2185d0 inset; background: #f0f7ff; }
+.sc-cp-mode input { margin-right: 0.4rem; }
+.sc-cp-mode span { font-weight: 600; color: #1d1d1f; }
+.sc-cp-mode small { color: #777; font-size: 0.75rem; line-height: 1.3; }
+.sc-cp-mode-note {
+  padding: 1.25rem; background: #f8f9fb; border: 1px dashed #d3dce6;
+  border-radius: 6px; color: #555; line-height: 1.5;
+}
+.sc-cp-mode-note strong { color: #1d1d1f; }
+.sc-cp-mode-note p { margin: 0 0 1rem; }
+.sc-cp-mode-hint { display: block; margin-top: 0.5rem; color: #777; font-size: 0.8rem; }
+
+/* ── Importador de footer.json (modo Blocs) ──────────────────────── */
+.sc-cp-import {
+  margin: 0 0 1rem; padding: 0.9rem 1rem; background: #fbfaf5;
+  border: 1px dashed #d8c98f; border-radius: 6px;
+}
+.sc-cp-import > label { font-weight: 600; display: block; margin-bottom: 0.5rem; color: #5a4b1a; }
+.sc-cp-import-box { min-height: 110px !important; background: #fff !important; border: 1px solid #e2d9b8 !important; }
+
+/* ── Dropzone del importador (modo Blocs) ────────────────────────── */
+.sc-cp-import.sc-cp-dragover { border-color: #2185d0; background: #eef6ff; box-shadow: 0 0 0 2px #2185d0 inset; }
+.sc-cp-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 0.4rem;
+  padding: 1.2rem 1rem; text-align: center; color: #5a4b1a;
+  border: 2px dashed #d8c98f; border-radius: 6px; background: #fffdf6;
+  transition: all 0.12s; pointer-events: auto;
+}
+.sc-cp-dragover .sc-cp-drop { border-color: #2185d0; color: #1a4b7a; background: #f3f9ff; }
+.sc-cp-drop p { margin: 0; font-size: 0.9rem; }
+.sc-cp-drop .icon { color: #c9b870; margin: 0; }
+.sc-cp-dragover .sc-cp-drop .icon { color: #2185d0; }
+.sc-cp-paste { margin-top: 0.75rem; }
+.sc-cp-paste > summary { cursor: pointer; font-size: 0.82rem; color: #2185d0; user-select: none; }
+.sc-cp-paste > summary:hover { text-decoration: underline; }
+.sc-cp-paste .sc-cp-import-box { margin-top: 0.5rem; }

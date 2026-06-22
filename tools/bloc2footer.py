@@ -86,6 +86,24 @@ def used_classes(html):
     return classes
 
 
+# Tags HTML estandar que NO tratamos como "elemento permitido" sueltos: evita
+# arrastrar reglas genericas de layout de pagina (div/span/section/...).
+STANDARD_HTML = {
+    'html', 'body', 'div', 'span', 'section', 'article', 'header', 'footer',
+    'nav', 'main', 'aside', 'figure', 'figcaption', 'table', 'thead', 'tbody',
+    'tr', 'td', 'th', 'form', 'input', 'select', 'option', 'textarea',
+    'br', 'hr', 'path', 'g', 'defs', 'use',
+}
+
+
+def custom_tags(html):
+    """Tags no estandar usados en el HTML (custom elements de Blocs, p.ej.
+    <blocsicon>). Sus reglas (blocsicon{}, blocsicon svg{}) deben conservarse o
+    los SVG sin width/height se inflan. Excluye los tags estructurales."""
+    tags = {m.lower() for m in re.findall(r'<([a-zA-Z][a-zA-Z0-9-]*)', html)}
+    return {t for t in tags if t not in STANDARD_HTML}
+
+
 # --------------------------------------------------------------------------- #
 # CSS — tokenizer consciente de llaves / strings / comentarios
 # --------------------------------------------------------------------------- #
@@ -137,14 +155,14 @@ def selector_classes(sel):
     return set(re.findall(r'\.([A-Za-z0-9_-]+)', sel))
 
 
-def is_pure_element(sel):
+def is_pure_element(sel, allowed=ALLOWED_ELEMENTS):
     s = sel.strip()
     if not s or any(ch in s for ch in '.#[:*>+~'):
         return False
-    return all(tok in ALLOWED_ELEMENTS for tok in re.split(r'\s+', s))
+    return all(tok in allowed for tok in re.split(r'\s+', s))
 
 
-def keep_selector(sel, used):
+def keep_selector(sel, used, allowed=ALLOWED_ELEMENTS):
     s = sel.strip()
     if not s:
         return False
@@ -155,8 +173,8 @@ def keep_selector(sel, used):
         return False
     if cls:
         return bool(cls & used)
-    # sin clases: solo elementos permitidos (font-family base, etc.)
-    return is_pure_element(s)
+    # sin clases: solo elementos permitidos (font-family base, custom de Blocs, etc.)
+    return is_pure_element(s, allowed)
 
 
 def scope_selector(sel, scope):
@@ -170,10 +188,10 @@ def scope_selector(sel, scope):
     return scope + ' ' + s
 
 
-def scope_rule(prelude, body, scope, used):
+def scope_rule(prelude, body, scope, used, allowed=ALLOWED_ELEMENTS):
     """Filtra+scopea una regla simple. Devuelve texto o '' si se descarta."""
     sels = [p for p in prelude.split(',') if p.strip()]
-    kept = [s for s in sels if keep_selector(s, used)]
+    kept = [s for s in sels if keep_selector(s, used, allowed)]
     if not kept:
         return ''
     scoped = []
@@ -187,18 +205,18 @@ def scope_rule(prelude, body, scope, used):
     return '%s{%s}' % (','.join(scoped), body)
 
 
-def scope_stylesheet(css, scope, used):
+def scope_stylesheet(css, scope, used, allowed=ALLOWED_ELEMENTS):
     """Aplica filtro+scoping a un stylesheet completo (incluye @media)."""
     out = []
     for kind, prelude, body in split_top_level(strip_comments(css)):
         if kind == 'rule':
-            r = scope_rule(prelude, body, scope, used)
+            r = scope_rule(prelude, body, scope, used, allowed)
             if r:
                 out.append(r)
         elif kind == 'at':
             head = prelude.split('(')[0].strip().split()[0].lower()
             if head in ('@media', '@supports'):
-                inner = scope_stylesheet(body, scope, used)
+                inner = scope_stylesheet(body, scope, used, allowed)
                 if inner.strip():
                     out.append('%s{%s}' % (prelude, inner))
             # @keyframes / @font-face / otros: se descartan (page FX)
@@ -335,16 +353,19 @@ def convert(export_dir, scope, wanted_blocs):
     if not html:
         raise SystemExit('No se extrajo ningun bloque de contenido del HTML.')
     used = used_classes(html)
+    # Elementos custom de Blocs (p.ej. <blocsicon>) usados: conservar sus reglas
+    # sueltas (blocsicon{}, blocsicon svg{}) o los SVG sin width/height se inflan.
+    allowed = ALLOWED_ELEMENTS | custom_tags(html)
 
     # --- CSS custom (seccion "Custom Styling" del usuario) -> footer_css
     sections = split_sections(style_css)
     custom_src = sections.get('custom styling', '')
-    custom_css = scope_stylesheet(custom_src, scope, used)
+    custom_css = scope_stylesheet(custom_src, scope, used, allowed)
 
     # --- base_css = todo lo demas de style.css (sin custom) + subset bootstrap
     base_src_parts = [v for k, v in sections.items() if k != 'custom styling']
-    base_from_style = scope_stylesheet('\n'.join(base_src_parts), scope, used)
-    base_from_bootstrap = scope_stylesheet(bootstrap_css, scope, used)
+    base_from_style = scope_stylesheet('\n'.join(base_src_parts), scope, used, allowed)
+    base_from_bootstrap = scope_stylesheet(bootstrap_css, scope, used, allowed)
 
     preamble = (
         '%s *,%s *::before,%s *::after{box-sizing:border-box;}'

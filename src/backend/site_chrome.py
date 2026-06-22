@@ -62,18 +62,33 @@ def _sanitize_css(v):
     return v
 
 
-def _sanitize_html(html):
-    """Sanitiza el HTML del footer (modo Blocs) con ALLOWLIST (fix SC-1).
+# Bloques de iconos (Blocs): <blocsicon>..</blocsicon> y <svg>..</svg>.
+_ICON_BLOCK_RE = re.compile(
+    r'<blocsicon\b[^>]*>.*?</blocsicon\s*>|<svg\b[^>]*>.*?</svg\s*>',
+    re.IGNORECASE | re.DOTALL,
+)
+# Elementos SVG que pueden ejecutar/cargar recursos: si aparecen, NO se protege.
+_ICON_NASTY = (
+    '<script', '<foreignobject', '<iframe', '<embed', '<object',
+    '<animate', '<set', '<use', '<image', '<a ', '<a>', '<handler', '<listener',
+)
 
-    Solo un gestor (cmf.ManagePortal) puede escribir, pero como el markup se
-    renderiza con dangerouslySetInnerHTML, se filtra por LISTA BLANCA usando el
-    transform safe_html de Plone (portal_transforms -> text/x-html-safe), que es
-    un sanitizador mantenido y basado en allowlist (no evadible como un regex).
-    Si no estuviera disponible, cae a una lista negra REFORZADA como defensa en
-    profundidad (cubre separadores no-espacio tipo <img/onerror=>, data:, vbscript:).
-    """
-    if not html:
-        return html
+
+def _icon_is_safe(block):
+    """True si el bloque de icono SVG no trae vectores activos (allowlist estricta:
+    solo geometria tipo <path>; cualquier elemento/atributo ejecutable lo descarta)."""
+    low = block.lower()
+    if any(tok in low for tok in _ICON_NASTY):
+        return False
+    if re.search(r'\son\w+\s*=', block, re.IGNORECASE):          # manejadores on*=
+        return False
+    if re.search(r'(?:java|vb)script\s*:|data\s*:', block, re.IGNORECASE):
+        return False
+    return True
+
+
+def _scrub_allowlist(html):
+    """Allowlist de Plone (fix SC-1) con fallback a lista negra reforzada."""
     # 1) Allowlist nativo de Plone (defensa primaria).
     try:
         transforms = api.portal.get_tool('portal_transforms')
@@ -95,6 +110,38 @@ def _sanitize_html(html):
     html = re.sub(r'(href|src)\s*=\s*(["\']?)\s*data:[^"\'>\s]*\2?',
                   r'\1=\2#\2', html, flags=re.IGNORECASE)
     return html
+
+
+def _sanitize_html(html):
+    """Sanitiza el HTML del footer (modo Blocs) con ALLOWLIST (fix SC-1)
+    preservando iconos SVG limpios (fix SC-1b).
+
+    Solo un gestor (cmf.ManagePortal) escribe, pero como el markup se renderiza
+    con dangerouslySetInnerHTML se filtra por LISTA BLANCA (transform safe_html
+    de Plone). Ese allowlist, sin embargo, elimina <svg>/<path>/<blocsicon> (no
+    estan en su lista) y ademas pasa el HTML por un parser HTML que pondria
+    'viewBox' en minusculas -> rompe los iconos. Por eso, antes de pasar por
+    safe_html, se EXTRAEN los bloques de icono que NO traen vectores activos, se
+    sustituyen por un marcador de texto, se corre el allowlist sobre el resto, y
+    se reinyecta el SVG validado TAL CUAL (preserva viewBox/d). Un bloque de
+    icono sospechoso no se protege: cae al allowlist y se elimina.
+    """
+    if not html:
+        return html
+    icons = []
+
+    def _stash(m):
+        block = m.group(0)
+        if _icon_is_safe(block):
+            icons.append(block)
+            return 'SCICON%dENDSCICON' % (len(icons) - 1)   # marcador de texto plano
+        return ''                                            # sospechoso: se descarta
+
+    protected = _ICON_BLOCK_RE.sub(_stash, html)
+    cleaned = _scrub_allowlist(protected)
+    cleaned = re.sub(r'SCICON(\d+)ENDSCICON',
+                     lambda m: icons[int(m.group(1))], cleaned)
+    return cleaned
 
 
 def _ensure_record(key, value='', title='Site Chrome'):

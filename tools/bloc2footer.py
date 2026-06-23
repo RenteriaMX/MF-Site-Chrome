@@ -159,14 +159,16 @@ def inline_images(html, export_dir):
             new = re.sub(r'(\bsrc\s*=\s*")[^"]*(")',
                          lambda sm: sm.group(1) + final_src + sm.group(2),
                          new, count=1, flags=re.IGNORECASE)
-        # Blinda el tamano con style INLINE (gana a cualquier regla del tema de
-        # Plone, que aplastaba el alto). Usa width/height declarados por Blocs;
-        # height:auto + aspect-ratio preserva la proporcion sin deformar.
+        # Blinda el tamano con style INLINE (gana por ser inline, NO con
+        # !important). Usa width/height declarados por Blocs y FUERZA ambos en px.
+        # max-width/max-height:none anulan reglas del tema de Plone que recortan
+        # imagenes: en particular `img[alt*="logo"]{max-height:85px}` (pensada para
+        # el logo del sitio) atrapaba imagenes con "logo" en el alt y las aplastaba.
         wm = re.search(r'\bwidth\s*=\s*"(\d+)"', new, re.IGNORECASE)
         hm = re.search(r'\bheight\s*=\s*"(\d+)"', new, re.IGNORECASE)
         if wm and hm:
             w, h = wm.group(1), hm.group(1)
-            lock = 'width:%spx;height:auto;aspect-ratio:%s/%s;max-width:100%%' % (w, w, h)
+            lock = 'width:%spx;height:%spx;max-width:none;max-height:none' % (w, h)
             sm = re.search(r'\bstyle\s*=\s*"([^"]*)"', new, re.IGNORECASE)
             if sm:
                 merged = sm.group(1).rstrip('; ') + ';' + lock

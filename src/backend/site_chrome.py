@@ -87,6 +87,33 @@ def _icon_is_safe(block):
     return True
 
 
+# <img> con la imagen incrustada como data: URI (bloc2footer inline_images).
+_DATA_IMG_RE = re.compile(r'<img\b[^>]*\bsrc\s*=\s*"data:image/[^"]*"[^>]*>',
+                          re.IGNORECASE)
+# Solo raster inerte: png/jpeg/gif/webp. SVG queda fuera (data:image/svg+xml
+# puede traer script si se trata como documento).
+_IMG_SAFE_MIME = (
+    'data:image/png;', 'data:image/jpeg;', 'data:image/jpg;',
+    'data:image/gif;', 'data:image/webp;',
+)
+
+
+def _img_is_safe(tag):
+    """True si el <img> incrusta una imagen raster inerte como data: URI y no
+    trae manejadores on*= ni otro esquema activo. Asi se preserva tal cual sin
+    que el allowlist (que borra data:) elimine la imagen del footer."""
+    m = re.search(r'src\s*=\s*"(data:image/[^";]+;)', tag, re.IGNORECASE)
+    if not m or not m.group(1).lower().startswith(_IMG_SAFE_MIME):
+        return False
+    if re.search(r'\son\w+\s*=', tag, re.IGNORECASE):            # manejadores on*=
+        return False
+    # ningun otro esquema activo en el resto del tag (otro atributo)
+    rest = re.sub(r'src\s*=\s*"data:image/[^"]*"', '', tag, count=1, flags=re.IGNORECASE)
+    if re.search(r'(?:java|vb)script\s*:|data\s*:', rest, re.IGNORECASE):
+        return False
+    return True
+
+
 def _scrub_allowlist(html):
     """Allowlist de Plone (fix SC-1) con fallback a lista negra reforzada."""
     # 1) Allowlist nativo de Plone (defensa primaria).
@@ -128,19 +155,27 @@ def _sanitize_html(html):
     """
     if not html:
         return html
-    icons = []
+    kept = []
 
-    def _stash(m):
+    def _stash_icon(m):
         block = m.group(0)
         if _icon_is_safe(block):
-            icons.append(block)
-            return 'SCICON%dENDSCICON' % (len(icons) - 1)   # marcador de texto plano
+            kept.append(block)
+            return 'SCKEEP%dENDSCKEEP' % (len(kept) - 1)     # marcador de texto plano
         return ''                                            # sospechoso: se descarta
 
-    protected = _ICON_BLOCK_RE.sub(_stash, html)
+    def _stash_img(m):
+        tag = m.group(0)
+        if _img_is_safe(tag):
+            kept.append(tag)
+            return 'SCKEEP%dENDSCKEEP' % (len(kept) - 1)     # imagen raster inerte
+        return tag       # no es data-img seguro: que el allowlist lo procese normal
+
+    protected = _ICON_BLOCK_RE.sub(_stash_icon, html)
+    protected = _DATA_IMG_RE.sub(_stash_img, protected)
     cleaned = _scrub_allowlist(protected)
-    cleaned = re.sub(r'SCICON(\d+)ENDSCICON',
-                     lambda m: icons[int(m.group(1))], cleaned)
+    cleaned = re.sub(r'SCKEEP(\d+)ENDSCKEEP',
+                     lambda m: kept[int(m.group(1))], cleaned)
     return cleaned
 
 

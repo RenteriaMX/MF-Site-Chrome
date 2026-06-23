@@ -28,6 +28,7 @@ Uso:
 """
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -102,6 +103,72 @@ def custom_tags(html):
     los SVG sin width/height se inflan. Excluye los tags estructurales."""
     tags = {m.lower() for m in re.findall(r'<([a-zA-Z][a-zA-Z0-9-]*)', html)}
     return {t for t in tags if t not in STANDARD_HTML}
+
+
+# --------------------------------------------------------------------------- #
+# Imagenes — inline como data: URI (footer autocontenido)
+# --------------------------------------------------------------------------- #
+
+# Solo raster inerte. SVG queda fuera a proposito: como data: en <img> no ejecuta
+# script, pero el sanitizador del backend solo deja pasar raster (defensa simple).
+_IMG_MIME = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif', '.webp': 'image/webp',
+}
+
+
+def _img_data_uri(export_dir, ref):
+    """Lee una imagen local del export y la devuelve como data: URI base64.
+    Devuelve None si la ref es externa/data:, no es raster o no existe el archivo."""
+    if not ref or ref.startswith(('data:', 'http://', 'https://', '//')):
+        return None
+    rel = ref.split('?')[0].split('#')[0]
+    path = os.path.normpath(os.path.join(export_dir, rel))
+    if not os.path.isfile(path):
+        return None
+    mime = _IMG_MIME.get(os.path.splitext(path)[1].lower())
+    if not mime:
+        return None
+    with open(path, 'rb') as f:
+        b64 = base64.b64encode(f.read()).decode('ascii')
+    return 'data:%s;base64,%s' % (mime, b64)
+
+
+def inline_images(html, export_dir):
+    """Convierte cada <img> a uno autocontenido: resuelve el lazyload de Blocs
+    (data-src = imagen real; src = placeholder transparente), incrusta la imagen
+    como data: URI base64 y limpia los atributos/clase de lazyload. Asi el footer
+    se ve igual fuera del export y al importarlo en Plone (sin assets externos ni
+    el JS lazysizes, que no viaja en el footer)."""
+    def repl(m):
+        tag = m.group(0)
+        dsrc = re.search(r'\bdata-src\s*=\s*"([^"]*)"', tag, re.IGNORECASE)
+        src = re.search(r'\bsrc\s*=\s*"([^"]*)"', tag, re.IGNORECASE)
+        ref = dsrc.group(1) if dsrc else (src.group(1) if src else '')
+        final_src = _img_data_uri(export_dir, ref) or ref
+        # quita atributos de lazyload (data-src/data-srcset/srcset placeholder)
+        new = re.sub(r'\s+(?:data-src|data-srcset|srcset)\s*=\s*"[^"]*"', '',
+                     tag, flags=re.IGNORECASE)
+        # quita las clases lazyload del class=""
+        def _declass(cm):
+            kept = [c for c in cm.group(1).split() if c not in ('lazyload', 'lazyloaded')]
+            return 'class="%s"' % ' '.join(kept)
+        new = re.sub(r'class\s*=\s*"([^"]*)"', _declass, new, flags=re.IGNORECASE)
+        # fija src a la imagen real (reemplazo por funcion: literal, sin group-refs)
+        if final_src and re.search(r'\bsrc\s*=\s*"[^"]*"', new, re.IGNORECASE):
+            new = re.sub(r'(\bsrc\s*=\s*")[^"]*(")',
+                         lambda sm: sm.group(1) + final_src + sm.group(2),
+                         new, count=1, flags=re.IGNORECASE)
+        return new
+
+    # Blocs envuelve el <img> en <picture> con <source srcset=placeholder
+    # data-srcset=real> para webp+lazyload. El navegador preferiria ese <source>
+    # (placeholder, ruta relativa) sobre el <img>. Y <picture>/<source> pueden no
+    # sobrevivir al allowlist de Plone. Desenvolvemos: quitamos picture/source y
+    # dejamos solo el <img>, que SI esta en el allowlist y ya queda incrustado.
+    html = re.sub(r'</?picture\b[^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<source\b[^>]*>', '', html, flags=re.IGNORECASE)
+    return re.sub(r'<img\b[^>]*>', repl, html, flags=re.IGNORECASE)
 
 
 # --------------------------------------------------------------------------- #
@@ -352,6 +419,8 @@ def convert(export_dir, scope, wanted_blocs):
     html = extract_blocs(index_html, wanted_blocs)
     if not html:
         raise SystemExit('No se extrajo ningun bloque de contenido del HTML.')
+    # Imagenes autocontenidas: resuelve el lazyload e incrusta como data: URI.
+    html = inline_images(html, export_dir)
     used = used_classes(html)
     # Elementos custom de Blocs (p.ej. <blocsicon>) usados: conservar sus reglas
     # sueltas (blocsicon{}, blocsicon svg{}) o los SVG sin width/height se inflan.

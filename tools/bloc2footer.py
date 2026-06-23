@@ -159,6 +159,21 @@ def inline_images(html, export_dir):
             new = re.sub(r'(\bsrc\s*=\s*")[^"]*(")',
                          lambda sm: sm.group(1) + final_src + sm.group(2),
                          new, count=1, flags=re.IGNORECASE)
+        # Blinda el tamano con style INLINE (gana a cualquier regla del tema de
+        # Plone, que aplastaba el alto). Usa width/height declarados por Blocs;
+        # height:auto + aspect-ratio preserva la proporcion sin deformar.
+        wm = re.search(r'\bwidth\s*=\s*"(\d+)"', new, re.IGNORECASE)
+        hm = re.search(r'\bheight\s*=\s*"(\d+)"', new, re.IGNORECASE)
+        if wm and hm:
+            w, h = wm.group(1), hm.group(1)
+            lock = 'width:%spx;height:auto;aspect-ratio:%s/%s;max-width:100%%' % (w, w, h)
+            sm = re.search(r'\bstyle\s*=\s*"([^"]*)"', new, re.IGNORECASE)
+            if sm:
+                merged = sm.group(1).rstrip('; ') + ';' + lock
+                new = new[:sm.start(1)] + merged + new[sm.end(1):]
+            else:
+                new = re.sub(r'(<img\b)', r'\1 style="%s"' % lock, new,
+                             count=1, flags=re.IGNORECASE)
         return new
 
     # Blocs envuelve el <img> en <picture> con <source srcset=placeholder

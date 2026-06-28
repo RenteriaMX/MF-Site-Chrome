@@ -629,7 +629,7 @@ entries.append("""  config.settings.controlpanels = [
     ...(config.settings.controlpanels || []),
     {
       '@id': '/controlpanel/site-chrome',
-      group: 'General',
+      group: 'Add-on Configuration',
       title: 'Site Chrome',
       description: 'Administra header (menu) y footer - sin rebuild.',
       icon: 'list layout',

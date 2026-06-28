@@ -211,13 +211,23 @@ else
 fi
 [[ -d "$PKG_SRC" ]] || err "No se encontro el paquete backend collective.sitechrome"
 
-# Detectar pip del venv del backend.
-PIP_CMD=""
-for cand in backend/.venv/bin/pip backend/bin/pip; do
-  [[ -x "$cand" ]] && { PIP_CMD="$cand"; break; }
+# Detectar el venv del backend. Despliegues cookieplone son uv-managed: el venv
+# NO trae pip, asi que soportamos uv (preferente), pip clasico y python -m pip.
+BK="$PLONE_BASE/backend"
+VENV_PY="$BK/.venv/bin/python"
+[[ -x "$VENV_PY" ]] || VENV_PY="$BK/bin/python"
+[[ -x "$VENV_PY" ]] || err "No se encontro el venv del backend ($BK/.venv)"
+
+# Localizar uv (el re-exec como owner puede no traerlo en PATH -> probar rutas comunes
+# y el home REAL del usuario actual, no solo $HOME).
+_OWNER_HOME="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6)"
+[[ -z "$_OWNER_HOME" ]] && _OWNER_HOME="$HOME"
+UV_BIN=""
+for u in uv "$_OWNER_HOME/.local/bin/uv" "$HOME/.local/bin/uv" \
+         "$_OWNER_HOME/.cargo/bin/uv" "$HOME/.cargo/bin/uv" /usr/local/bin/uv /usr/bin/uv; do
+  if command -v "$u" >/dev/null 2>&1; then UV_BIN="$(command -v "$u")"; break; fi
+  [[ -x "$u" ]] && { UV_BIN="$u"; break; }
 done
-[[ -z "$PIP_CMD" ]] && command -v pip >/dev/null 2>&1 && PIP_CMD="pip"
-[[ -z "$PIP_CMD" ]] && err "No se encontro pip del backend (backend/.venv/bin/pip)"
 
 mkdir -p backend/packages
 if [[ -d backend/packages/collective.sitechrome ]]; then
@@ -225,9 +235,19 @@ if [[ -d backend/packages/collective.sitechrome ]]; then
   rm -rf backend/packages/collective.sitechrome
 fi
 cp -r "$PKG_SRC" backend/packages/
+PKG_DST="$BK/packages/collective.sitechrome"
 
-info "pip install -e packages/collective.sitechrome ..."
-( cd backend && "$PIP_CMD" install --no-config -e packages/collective.sitechrome 2>&1 | tail -3 )
+info "Instalando paquete editable collective.sitechrome ..."
+if [[ -x "$BK/.venv/bin/pip" ]]; then
+  "$BK/.venv/bin/pip" install --no-config -e "$PKG_DST" 2>&1 | tail -3
+elif [[ -n "$UV_BIN" ]]; then
+  info "venv uv-managed -> usando uv ($UV_BIN)"
+  "$UV_BIN" pip install --python "$VENV_PY" -e "$PKG_DST" 2>&1 | tail -3
+elif "$VENV_PY" -m pip --version >/dev/null 2>&1; then
+  "$VENV_PY" -m pip install --no-config -e "$PKG_DST" 2>&1 | tail -3
+else
+  err "No hay forma de instalar el paquete: ni pip en el venv ni uv. Instala uv (curl -LsSf https://astral.sh/uv/install.sh | sh) y reintenta."
+fi
 log "Paquete backend instalado (collective.sitechrome)"
 
 # Activar el add-on en Plone (perfil GS: 6 registry keys + viewlet). Best-effort:

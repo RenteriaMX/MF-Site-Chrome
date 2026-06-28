@@ -3,6 +3,9 @@
     xmlns:plone="http://namespaces.plone.org/plone"
     >
 
+  <include package="plone.restapi" file="meta.zcml" />
+
+  <!-- @site-chrome GET: publico (lo necesita el SSR de Volto) -->
   <plone:service
       method="GET"
       factory=".site_chrome.SiteChromeGet"
@@ -11,6 +14,7 @@
       name="@site-chrome"
       />
 
+  <!-- @site-chrome PATCH: solo Manager -->
   <plone:service
       method="PATCH"
       factory=".site_chrome.SiteChromePatch"

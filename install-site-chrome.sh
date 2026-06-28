@@ -1,20 +1,23 @@
 #!/bin/bash
 # ============================================================
-#  Site Chrome Manager — Installer  v1.0
-#  (rename de MF-Nav-Menu; administra Header + Footer del sitio)
-#  - Detecta el backend automaticamente (sin hardcodeo)
-#  - Crea o usa un tema Volto existente
+#  Site Chrome Manager — Installer  v2.0
+#  (administra Header + Footer del sitio Plone/Volto)
+#  - BACKEND como add-on instalable: collective.sitechrome (pip + perfil GS)
 #  - Endpoint REST /@site-chrome (GET publico / PATCH Manager)
-#  - 6 registry keys: site_chrome.{header,footer}_{config,base_css,css}
+#  - 6 registry keys: collective.sitechrome.site_chrome.{header,footer}_{config,base_css,css}
 #  - Navigation.jsx (header, fat menu) + Footer.jsx (footer por config)
 #  - Control Panel: Header | Footer, cada uno con sus tabs
-#  - Migracion lazy desde MF-Nav-Menu (conserva el menu existente)
 #  - CSS sin rebuild (Registry + viewlet en <head>), SSR sin flash
 # ============================================================
 # Historial:
 #   v1.0  Rename a Site Chrome. Endpoint unificado @site-chrome,
 #         footer por config (columnas/copyright/legal), CSRF fix en PATCH,
 #         filtro por permiso View en el header, migracion lazy nav-menu.
+#   v2.0  Split del backend a add-on collective.sitechrome (perfiles GS
+#         install/uninstall, namespace propio). Endurecimiento: sanitizar al
+#         leer/renderizar (SC-3), neutralizar url() externo en CSS (SC-5),
+#         log de auditoria del PATCH (SC-6). Migracion lazy via
+#         SITE_CHROME_LEGACY_NS. Frontend sigue como shadowing del tema.
 # ============================================================
 set -euo pipefail
 
@@ -82,7 +85,7 @@ _get_src() {
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║   Site Chrome Manager — Installer        ║${NC}"
-echo -e "${CYAN}║                    v1.0                  ║${NC}"
+echo -e "${CYAN}║                    v2.0                  ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -189,97 +192,102 @@ read -rp "Continuar? (s/n) [s]: " CONFIRM
 [[ "${CONFIRM:-s}" =~ ^[nN]$ ]] && { info "Cancelado."; exit 0; }
 
 # ══════════════════════════════════════════
-#  BACKEND
+#  BACKEND — add-on collective.sitechrome
 # ══════════════════════════════════════════
 hr
-info "Configurando backend..."
+info "Instalando add-on backend collective.sitechrome..."
 
-# ── 3. Registry XML (6 keys con namespace site_chrome) ──────────────
-REGISTRY_NS="${BACKEND_NAME}.site_chrome"
-REGISTRY_FILE="${BACKEND_DIR}/profiles/default/registry/main.xml"
-
-python3 - "$REGISTRY_FILE" "$REGISTRY_NS" << 'PYEOF'
-import sys
-import xml.etree.ElementTree as ET
-
-registry_file = sys.argv[1]
-ns = sys.argv[2]
-keys = [
-    ('{}.header_config'.format(ns),   'Site Chrome Header Config',
-     '[{"id":"home","label":"Home","type":"plone","slug":""}]'),
-    ('{}.header_base_css'.format(ns), 'Site Chrome Header Base CSS', ''),
-    ('{}.header_css'.format(ns),      'Site Chrome Header CSS', ''),
-    ('{}.footer_config'.format(ns),   'Site Chrome Footer Config',
-     '{"columns":[],"copyright":"","legal_links":[],"show_default":true}'),
-    ('{}.footer_base_css'.format(ns), 'Site Chrome Footer Base CSS', ''),
-    ('{}.footer_css'.format(ns),      'Site Chrome Footer CSS', ''),
-]
-
-ET.register_namespace('i18n', 'http://xml.zope.org/namespaces/i18n')
-tree = ET.parse(registry_file)
-root = tree.getroot()
-
-existing_keys = {r.get('name') for r in root.findall('record')}
-added = []
-
-for key, title, default_val in keys:
-    if key not in existing_keys:
-        record = ET.SubElement(root, 'record')
-        record.set('name', key)
-        field = ET.SubElement(record, 'field')
-        field.set('type', 'plone.registry.field.Text')
-        ET.SubElement(field, 'title').text = title
-        ET.SubElement(field, 'required').text = 'False'
-        ET.SubElement(record, 'value').text = default_val
-        added.append(key)
-
-if added:
-    try:
-        ET.indent(tree, space='  ')
-    except AttributeError:
-        pass  # Python < 3.9
-    with open(registry_file, 'w', encoding='utf-8') as f:
-        f.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        ET.ElementTree(root).write(f, encoding='unicode')
-    print('Registry records creados: {}'.format(', '.join(added)))
-else:
-    print('Registry records ya existen')
-PYEOF
-log "Registry records verificados (site_chrome.*)"
-
-# ── 4. Endpoint REST /@site-chrome ──────────────────────────────────
-RESTAPI_DIR="${BACKEND_DIR}/restapi"
-mkdir -p "$RESTAPI_DIR"
-touch "${RESTAPI_DIR}/__init__.py"
-
-# Limpiar endpoint viejo del nav-menu si existe
-rm -f "${RESTAPI_DIR}/navigation_menu.py"
-
-_get_src "backend/site_chrome.py" > "${RESTAPI_DIR}/site_chrome.py"
-_get_src "backend/restapi_configure.zcml" > "${RESTAPI_DIR}/configure.zcml"
-
-MAIN_ZCML="${BACKEND_DIR}/configure.zcml"
-if grep -q 'package=".restapi"' "$MAIN_ZCML"; then
-  warn ".restapi ya registrado en configure.zcml"
+# Localizar el paquete: junto al script (repo) o clonar de GitHub (curl|bash).
+PKG_SRC=""
+if [[ -d "${_SCRIPT_DIR}/backend/collective.sitechrome" ]]; then
+  PKG_SRC="${_SCRIPT_DIR}/backend/collective.sitechrome"
 else
-  python3 - "$MAIN_ZCML" << 'PYEOF'
-import sys, re
-zcml_file = sys.argv[1]
-with open(zcml_file) as f:
-    content = f.read()
-if '.restapi' in content:
-    print('configure.zcml ya incluye .restapi')
-    sys.exit(0)
-include_line = '\n  <include package=".restapi" />\n'
-content = re.sub(r'(\s*</configure>\s*)$', include_line + r'\1', content.rstrip() + '\n')
-with open(zcml_file, 'w') as f:
-    f.write(content)
-print('Registrado .restapi en configure.zcml')
-PYEOF
-  log "Registrado .restapi en configure.zcml"
+  _TMP_REPO="$(mktemp -d)"
+  info "Clonando MF-Site-Chrome para obtener el paquete backend..."
+  git clone --depth 1 https://github.com/RenteriaMX/MF-Site-Chrome.git \
+    "$_TMP_REPO/mf-site-chrome" 2>/dev/null \
+    || err "No se pudo clonar el repo para obtener collective.sitechrome"
+  PKG_SRC="$_TMP_REPO/mf-site-chrome/backend/collective.sitechrome"
 fi
+[[ -d "$PKG_SRC" ]] || err "No se encontro el paquete backend collective.sitechrome"
 
-log "Endpoint /@site-chrome creado"
+# Detectar pip del venv del backend.
+PIP_CMD=""
+for cand in backend/.venv/bin/pip backend/bin/pip; do
+  [[ -x "$cand" ]] && { PIP_CMD="$cand"; break; }
+done
+[[ -z "$PIP_CMD" ]] && command -v pip >/dev/null 2>&1 && PIP_CMD="pip"
+[[ -z "$PIP_CMD" ]] && err "No se encontro pip del backend (backend/.venv/bin/pip)"
+
+mkdir -p backend/packages
+if [[ -d backend/packages/collective.sitechrome ]]; then
+  warn "collective.sitechrome ya existe. Actualizando..."
+  rm -rf backend/packages/collective.sitechrome
+fi
+cp -r "$PKG_SRC" backend/packages/
+
+info "pip install -e packages/collective.sitechrome ..."
+( cd backend && "$PIP_CMD" install --no-config -e packages/collective.sitechrome 2>&1 | tail -3 )
+log "Paquete backend instalado (collective.sitechrome)"
+
+# Activar el add-on en Plone (perfil GS: 6 registry keys + viewlet). Best-effort:
+# si no hay zconsole/zope.conf, el add-on igual funciona (autoinclude carga el
+# servicio + viewlet; las registry keys se crean lazy en el primer PATCH) y se
+# puede instalar luego desde Site Setup -> Add-ons.
+_activate_addon() {
+  local zconsole="" zconf=""
+  for z in backend/.venv/bin/zconsole backend/bin/zconsole; do
+    [[ -x "$z" ]] && { zconsole="$z"; break; }
+  done
+  for c in backend/instance/etc/zope.conf backend/etc/zope.conf \
+           backend/parts/instance/etc/zope.conf; do
+    [[ -f "$c" ]] && { zconf="$c"; break; }
+  done
+  if [[ -z "$zconsole" || -z "$zconf" ]]; then
+    warn "zconsole/zope.conf no encontrados: instala el add-on desde Site Setup -> Add-ons (collective.sitechrome)."
+    return
+  fi
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  local svcs
+  svcs=$(systemctl --user list-units --all --no-legend "plone-*-backend*" 2>/dev/null | awk '{print $1}')
+  for s in $svcs; do systemctl --user stop "$s" 2>/dev/null || true; done
+  [[ -n "$svcs" ]] && sleep 2
+  local script; script="$(mktemp /tmp/sc_install_XXXXXX.py)"
+  cat > "$script" << 'SCPY'
+import transaction
+from Testing.makerequest import makerequest
+from AccessControl.SecurityManagement import newSecurityManager
+from AccessControl.users import SimpleUser
+from zope.site.hooks import setSite
+
+app = makerequest(app)
+SITE_ID = None
+for oid in app.objectIds():
+    o = app[oid]
+    if getattr(o, "portal_type", None) == "Plone Site":
+        SITE_ID = oid; break
+if not SITE_ID:
+    print("[site-chrome] ERROR: no Plone site"); import sys; sys.exit(1)
+portal = app[SITE_ID]; setSite(portal)
+newSecurityManager(None, SimpleUser("admin", "", ["Manager"], []).__of__(app.acl_users))
+from Products.CMFPlone.utils import get_installer
+installer = get_installer(portal)
+if not installer.is_product_installed("collective.sitechrome"):
+    installer.install_product("collective.sitechrome")
+    print("[site-chrome] add-on instalado.")
+else:
+    print("[site-chrome] add-on ya instalado.")
+transaction.commit()
+print("[site-chrome] done.")
+SCPY
+  info "Activando add-on en Plone (zconsole)..."
+  "$zconsole" run "$zconf" "$script" 2>&1 | tail -5 || warn "Activacion best-effort fallo; instala desde Site Setup -> Add-ons."
+  rm -f "$script"
+  # Re-levantar backend (el restart final, si se hace build, lo reinicia de nuevo).
+  for s in $svcs; do systemctl --user start "$s" 2>/dev/null || true; done
+}
+_activate_addon
+log "Endpoint /@site-chrome listo (GET publico / PATCH Manager)"
 
 # ══════════════════════════════════════════
 #  FRONTEND
@@ -453,33 +461,9 @@ log "Control Panel creado (Header | Footer)"
 _get_src "frontend/siteChromeSSR.js" > "${THEME_DIR}/src/siteChromeSSR.js"
 log "siteChromeSSR.js creado (Redux SSR)"
 
-# ── 9b. Viewlet backend (CSS header+footer en <head>) ───────────────
-VIEWLET_DIR="${BACKEND_DIR}/viewlets"
-mkdir -p "$VIEWLET_DIR"
-cat > "${VIEWLET_DIR}/__init__.py" << 'INITEOF'
-# -*- coding: utf-8 -*-
-INITEOF
-
-_get_src "backend/site_chrome_viewlet.py" | sed "s/%%BACKEND_NAME%%/${BACKEND_NAME}/g" > "${VIEWLET_DIR}/site_chrome_viewlet.py"
-_get_src "backend/site_chrome_viewlet.pt" > "${VIEWLET_DIR}/site_chrome_viewlet.pt"
-_get_src "backend/viewlet_configure.zcml" | sed "s/%%BACKEND_NAME%%/${BACKEND_NAME}/g" > "${VIEWLET_DIR}/configure.zcml"
-
-# Registrar viewlets en configure.zcml principal si no existe
-MAIN_ZCML="${BACKEND_DIR}/configure.zcml"
-if ! grep -q 'viewlets' "$MAIN_ZCML" 2>/dev/null; then
-  python3 - "$MAIN_ZCML" << 'VIEWZCMLEOF'
-import sys
-p = sys.argv[1]
-with open(p) as f:
-    c = f.read()
-if '.viewlets' not in c:
-    c = c.replace('</configure>', '  <include package=".viewlets" />\n\n</configure>')
-    with open(p, 'w') as f:
-        f.write(c)
-    print('viewlets registrado en configure.zcml')
-VIEWZCMLEOF
-fi
-log "Viewlet backend creado (CSS en <head>)"
+# ── 9b. (Viewlet backend ahora lo provee el add-on collective.sitechrome) ─
+# El CSS del header/footer se inyecta en <head> via el viewlet del add-on
+# (autoinclude), sanitizado en el propio paquete. Sin archivos sueltos aqui.
 
 # ── 10. index.ts ─────────────────────────────────────────────────────
 INDEX_FILE="${THEME_DIR}/src/index.ts"
@@ -780,11 +764,11 @@ fi
 # ══════════════════════════════════════════
 hr
 echo ""
-echo -e "${GREEN}Instalacion completada — Site Chrome v1.0${NC}"
+echo -e "${GREEN}Instalacion completada — Site Chrome v2.0${NC}"
 echo ""
-echo -e "  Backend:        ${CYAN}$BACKEND_NAME${NC}"
+echo -e "  Backend add-on: ${CYAN}collective.sitechrome${NC}  (policy: $BACKEND_NAME)"
 echo -e "  Tema:           ${CYAN}$THEME_NAME${NC}"
-echo -e "  Registry:       ${CYAN}${BACKEND_NAME}.site_chrome.{header,footer}_{config,base_css,css}${NC}"
+echo -e "  Registry:       ${CYAN}collective.sitechrome.site_chrome.{header,footer}_{config,base_css,css}${NC}"
 echo -e "  Endpoint:       ${CYAN}GET/PATCH /@site-chrome${NC}"
 echo -e "  Control Panel:  ${CYAN}/controlpanel/site-chrome${NC}"
 echo ""

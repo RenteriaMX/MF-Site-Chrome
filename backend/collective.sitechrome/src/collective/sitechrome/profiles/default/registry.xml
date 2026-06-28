@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<registry>
+  <record name="collective.sitechrome.site_chrome.header_config">
+    <field type="plone.registry.field.Text">
+      <title>Site Chrome Header Config</title>
+      <required>False</required>
+    </field>
+    <value>[{"id":"home","label":"Home","type":"plone","slug":""}]</value>
+  </record>
+  <record name="collective.sitechrome.site_chrome.header_base_css">
+    <field type="plone.registry.field.Text">
+      <title>Site Chrome Header Base CSS</title>
+      <required>False</required>
+    </field>
+    <value></value>
+  </record>
+  <record name="collective.sitechrome.site_chrome.header_css">
+    <field type="plone.registry.field.Text">
+      <title>Site Chrome Header CSS</title>
+      <required>False</required>
+    </field>
+    <value></value>
+  </record>
+  <record name="collective.sitechrome.site_chrome.footer_config">
+    <field type="plone.registry.field.Text">
+      <title>Site Chrome Footer Config</title>
+      <required>False</required>
+    </field>
+    <value>{"mode":"columns","columns":[],"copyright":"","legal_links":[],"html":"","show_default":true}</value>
+  </record>
+  <record name="collective.sitechrome.site_chrome.footer_base_css">
+    <field type="plone.registry.field.Text">
+      <title>Site Chrome Footer Base CSS</title>
+      <required>False</required>
+    </field>
+    <value></value>
+  </record>
+  <record name="collective.sitechrome.site_chrome.footer_css">
+    <field type="plone.registry.field.Text">
+      <title>Site Chrome Footer CSS</title>
+      <required>False</required>
+    </field>
+    <value></value>
+  </record>
+</registry>

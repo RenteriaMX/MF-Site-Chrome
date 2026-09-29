@@ -134,10 +134,33 @@ if [[ ${#VOLTO_SVCS[@]} -eq 0 ]]; then
 fi
 SYSTEMD_MODE="$BACKEND_MODE"
 
-[[ ${#BACKEND_SVCS[@]} -eq 0 ]] && BACKEND_SVCS=("plone-backend-1")
-[[ ${#VOLTO_SVCS[@]} -eq 0 ]]   && VOLTO_SVCS=("plone-volto")
-log "Servicios backend : ${BACKEND_SVCS[*]}"
-log "Servicios volto   : ${VOLTO_SVCS[*]}"
+# NO se inventan nombres de unidad: si no se detecta ninguna, el stack no usa
+# systemd (o usa otros nombres) y reiniciar "plone-backend-1"/"plone-volto"
+# adivinados solo falla. Las listas quedan vacías y el reinicio se omite con
+# instrucciones claras (ver más abajo).
+NO_SVCS=false
+[[ ${#BACKEND_SVCS[@]} -eq 0 && ${#VOLTO_SVCS[@]} -eq 0 ]] && NO_SVCS=true
+log "Servicios backend : ${BACKEND_SVCS[*]:-(ninguno detectado)}"
+log "Servicios volto   : ${VOLTO_SVCS[*]:-(ninguno detectado)}"
+
+# Imprime los comandos de reinicio solo de los servicios detectados.
+_print_restart_cmds() {
+  local prefix="${1:-}"
+  if [[ ${#BACKEND_SVCS[@]} -gt 0 ]]; then
+    if [[ "$BACKEND_MODE" == "--user" ]]; then
+      echo -e "${prefix}systemctl --user restart ${BACKEND_SVCS[*]}"
+    else
+      echo -e "${prefix}sudo systemctl restart ${BACKEND_SVCS[*]}"
+    fi
+  fi
+  if [[ ${#VOLTO_SVCS[@]} -gt 0 ]]; then
+    if [[ "$VOLTO_MODE" == "--user" ]]; then
+      echo -e "${prefix}systemctl --user restart ${VOLTO_SVCS[*]}"
+    else
+      echo -e "${prefix}sudo systemctl restart ${VOLTO_SVCS[*]}"
+    fi
+  fi
+}
 log "Modo backend      : $BACKEND_MODE"
 log "Modo volto        : $VOLTO_MODE"
 
@@ -743,39 +766,35 @@ if [[ "$BUILD_NOW" =~ ^[sS]$ ]]; then
       sudo -n systemctl restart "${svcs[@]}"
     fi
   }
-  RESTART_OK=true
-  _restart_svc "$BACKEND_MODE" "${BACKEND_SVCS[@]}" || RESTART_OK=false
-  _restart_svc "$VOLTO_MODE"   "${VOLTO_SVCS[@]}"   || RESTART_OK=false
-  if [[ "$RESTART_OK" == true ]]; then
-    log "Reiniciados: ${BACKEND_SVCS[*]} ${VOLTO_SVCS[*]}"
+  if [[ "$NO_SVCS" == true ]]; then
+    warn "No se detectaron servicios systemd de Plone/Volto — no se reinicia nada automáticamente."
+    echo "  Reinicia el backend (Zope) y Volto con el mecanismo de tu instalación"
+    echo "  (p. ej. en HEOC: bash heoc/ctl.sh <proyecto> restart core)."
   else
-    warn "Reinicio manual requerido:"
-    echo ""
-    if [[ "$BACKEND_MODE" == "--user" ]]; then
-      echo -e "  ${CYAN}systemctl --user restart ${BACKEND_SVCS[*]}${NC}"
-    else
-      echo -e "  ${CYAN}sudo systemctl restart ${BACKEND_SVCS[*]}${NC}"
+    RESTART_OK=true
+    if [[ ${#BACKEND_SVCS[@]} -gt 0 ]]; then
+      _restart_svc "$BACKEND_MODE" "${BACKEND_SVCS[@]}" || RESTART_OK=false
     fi
-    if [[ "$VOLTO_MODE" == "--user" ]]; then
-      echo -e "  ${CYAN}systemctl --user restart ${VOLTO_SVCS[*]}${NC}"
-    else
-      echo -e "  ${CYAN}sudo systemctl restart ${VOLTO_SVCS[*]}${NC}"
+    if [[ ${#VOLTO_SVCS[@]} -gt 0 ]]; then
+      _restart_svc "$VOLTO_MODE" "${VOLTO_SVCS[@]}" || RESTART_OK=false
     fi
-    echo ""
-    read -rp "Presiona Enter cuando hayas reiniciado..." _WAIT
+    if [[ "$RESTART_OK" == true ]]; then
+      log "Reiniciados: ${BACKEND_SVCS[*]:-} ${VOLTO_SVCS[*]:-}"
+    else
+      warn "Reinicio manual requerido:"
+      echo ""
+      _print_restart_cmds "  ${CYAN}"
+      echo -e "${NC}"
+      read -rp "Presiona Enter cuando hayas reiniciado..." _WAIT
+    fi
   fi
 else
   warn "Compilacion pendiente:"
   echo "  cd frontend && pnpm install && pnpm build && cd .."
-  if [[ "$BACKEND_MODE" == "--user" ]]; then
-    echo "  systemctl --user restart ${BACKEND_SVCS[*]}"
+  if [[ "$NO_SVCS" == true ]]; then
+    echo "  (y reinicia backend y Volto con el mecanismo de tu instalación)"
   else
-    echo "  sudo systemctl restart ${BACKEND_SVCS[*]}"
-  fi
-  if [[ "$VOLTO_MODE" == "--user" ]]; then
-    echo "  systemctl --user restart ${VOLTO_SVCS[*]}"
-  else
-    echo "  sudo systemctl restart ${VOLTO_SVCS[*]}"
+    _print_restart_cmds "  "
   fi
 fi
 

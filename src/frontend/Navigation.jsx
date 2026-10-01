@@ -21,6 +21,7 @@ import config from '@plone/volto/registry';
 import { getNavigation } from '@plone/volto/actions/navigation/navigation';
 import { CSSTransition } from 'react-transition-group';
 import NavItems from '@plone/volto/components/theme/Navigation/NavItems';
+import { getSiteChrome } from '../../../../../siteChromeSSR';
 import './Navigation.css';
 
 const messages = defineMessages({
@@ -153,6 +154,19 @@ const Navigation = (props) => {
 
   const items = useSelector((state) => state.navigation.items, shallowEqual);
   const lang  = useSelector((state) => state.intl.locale);
+
+  // El menu depende de los permisos del usuario (paginas privadas solo las ve
+  // quien tiene acceso). El SSR solo lo carga en la primera peticion; login y
+  // logout navegan dentro del SPA sin recargar, asi que sin esto el header
+  // conserva el menu del usuario anterior hasta un reload completo.
+  // El primer render lo trae el SSR: solo se refetchea cuando el token CAMBIA.
+  const lastToken = useRef(token);
+  useEffect(() => {
+    if (lastToken.current !== token) {
+      lastToken.current = token;
+      dispatch(getSiteChrome());
+    }
+  }, [token, dispatch]);
 
   useEffect(() => {
     const { settings } = config;

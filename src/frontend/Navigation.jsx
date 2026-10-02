@@ -136,6 +136,29 @@ const FatMenuItem = ({ ploneItem, cssClass, onClose }) => {
   );
 };
 
+// Tras iniciar sesion desde el inicio de Plone (/login?return_url=/Plone), lleva
+// al usuario a su espacio: /Plone/inventario-cve/<departamento> (admin: la lista
+// general). Si venia de otra pagina (return_url distinto del inicio) NO se toca.
+const esInicio = (ruta) => ['', '/', '/Plone'].includes((ruta || '').replace(/\/+$/, ''));
+
+const irAlDepartamento = (token, history) => {
+  if (typeof window === 'undefined') return;
+  const { pathname, search } = window.location;
+  const destino = new URLSearchParams(search).get('return_url');
+  const viniaDelInicio = /\/login\/?$/.test(pathname) ? esInicio(destino) : esInicio(pathname);
+  if (!viniaDelInicio) return;
+  fetch('/++api++/Plone/@cve-departments', {
+    credentials: 'include',
+    headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      if (!d || !d.current_dept) return;
+      history.replace(d.is_admin ? '/Plone/inventario-cve' : `/Plone/inventario-cve/${d.current_dept}`);
+    })
+    .catch(() => {});
+};
+
 const Navigation = (props) => {
   const intl     = useIntl();
   const dispatch = useDispatch();
@@ -161,12 +184,15 @@ const Navigation = (props) => {
   // conserva el menu del usuario anterior hasta un reload completo.
   // El primer render lo trae el SSR: solo se refetchea cuando el token CAMBIA.
   const lastToken = useRef(token);
+  const history   = useHistory();
   useEffect(() => {
     if (lastToken.current !== token) {
+      const huboLogin = !lastToken.current && !!token;
       lastToken.current = token;
       dispatch(getSiteChrome());
+      if (huboLogin) irAlDepartamento(token, history);
     }
-  }, [token, dispatch]);
+  }, [token, dispatch, history]);
 
   useEffect(() => {
     const { settings } = config;

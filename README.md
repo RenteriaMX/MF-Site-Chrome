@@ -25,7 +25,7 @@
 ## Quick Install
 
 ```bash
-curl -sL https://raw.githubusercontent.com/RenteriaMX/MF-Site-Chrome/main/install-site-chrome.sh | bash -s /ruta/al/proyecto
+curl -sL https://raw.githubusercontent.com/RenteriaMX/MF-Site-Chrome/main/install_site_chrome.py | python3 - /ruta/al/proyecto
 ```
 
 > El script se re-ejecuta automáticamente como el usuario `plone`. No es necesario correrlo ya como plone.
